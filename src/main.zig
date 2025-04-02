@@ -4,6 +4,8 @@
 
 const Style = @import("Utils/style.zig").Style; // if in a separate file
 
+const Printer = @import("Printer/printer.zig").Printer;
+
 /// Prints out program help menu.
 /// I took helper menu straight from python...
 pub fn printHelp() !void {
@@ -39,7 +41,71 @@ pub fn main() !void {
 
     try bw.flush(); // Don't forget to flush!
 
-    try printHelp();
+    // try printHelp();
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer {
+        const deinit_status = gpa.deinit();
+        //fail test; can't try in defer as defer is executed after we return
+        if (deinit_status == .leak) @panic("TEST FAIL");
+    }
+
+    var iter = try std.process.argsWithAllocator(allocator);
+    defer iter.deinit();
+
+    var script_name: ?[]const u8 = null; // optinal script name
+
+    var i: usize = 0;
+    while (iter.next()) |arg| : (i += 1) {
+        std.debug.print("here1\n", .{});
+        if (i == 0) {
+            continue;
+        }
+
+        if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+            try printHelp();
+            return;
+        } else {
+            // must be a name of a zig script to execute
+            try stdout.print("arg[{d}]: {s}{s}{s}\n", .{ i, Style.fg_red, arg, Style.reset });
+            try bw.flush(); // Don't forget to flush!
+            // copy script name. safe as long as iter is still alive
+            script_name = arg;
+        }
+
+        try stdout.print("arg[{d}]: {s}\n", .{ i, arg });
+        try bw.flush(); // Don't forget to flush!
+    }
+    std.debug.print("here2\n", .{});
+
+    // if a script name was found run in script mode
+    if (script_name) |script| {
+        try stdout.print("script name:{s}\n", .{script});
+        try bw.flush(); // Don't forget to flush!
+        std.debug.print("here3\n", .{});
+        try runScriptMode(script);
+    } else {
+        // run in interpreter mode
+        std.debug.print("here4\n", .{});
+        try runInterpreterMode();
+    }
+}
+
+fn runScriptMode(script_name: []const u8) !void {
+    std.debug.print("script mode {s}\n", .{script_name});
+}
+
+fn runInterpreterMode() !void {
+
+    // run in a continous interpreter mode
+    std.debug.print("interpreter mode\n", .{});
+
+    // var printer = Printer.init();
+
+    // try printer.printError("Welcome to the Zig Interpreter!\n", .{});
+    // try printer.printResult("=> {s}\n", .{"42"});
+    // try printer.printError("Syntax error at line {}\n", .{10});
 }
 
 test "simple test" {
