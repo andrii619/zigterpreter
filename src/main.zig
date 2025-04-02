@@ -4,12 +4,14 @@
 
 const Style = @import("Utils/style.zig").Style; // if in a separate file
 
+/// Prints out program help menu.
+/// I took helper menu straight from python...
 pub fn printHelp() !void {
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
-    try stdout.print("{s}usage:{s} {s}{s}zigterp{s} [option] ... [-c cmd | -m mod | file | -] [arg] ...\n\n", .{ Style.heading, Style.reset, Style.fg_magenta, Style.underline, Style.reset });
+    try stdout.print("{s}usage:{s} {s}{s}zigterpreter{s} [option] ... [-c cmd | -m mod | file | -] [arg] ...\n\n", .{ Style.heading, Style.reset, Style.fg_magenta, Style.underline, Style.reset });
 
     try stdout.print("{s}Options:{s}\n", .{ Style.heading, Style.reset });
     try stdout.print("  {s}-h{s}, {s}--help{s}: print this help menu\n\n", .{ Style.flag, Style.reset, Style.flag, Style.reset });
