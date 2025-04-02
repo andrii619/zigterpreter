@@ -90,6 +90,16 @@ pub fn main() !void {
         std.debug.print("here4\n", .{});
         try runInterpreterMode();
     }
+
+    // var map = std.AutoHashMap(u32, Point).init(
+    //     test_allocator,
+    // );
+    // defer map.deinit();
+
+    // try map.put(1525, .{ .x = 1, .y = -4 });
+    // try map.put(1550, .{ .x = 2, .y = -3 });
+    // try map.put(1575, .{ .x = 3, .y = -2 });
+    // try map.put(1600, .{ .x = 4, .y = -1 });
 }
 
 fn runScriptMode(script_name: []const u8) !void {
@@ -101,11 +111,11 @@ fn runInterpreterMode() !void {
     // run in a continous interpreter mode
     std.debug.print("interpreter mode\n", .{});
 
-    // var printer = Printer.init();
+    var printer = Printer.init();
 
-    // try printer.printError("Welcome to the Zig Interpreter!\n", .{});
-    // try printer.printResult("=> {s}\n", .{"42"});
-    // try printer.printError("Syntax error at line {}\n", .{10});
+    try printer.printError("Welcome to the Zig Interpreter!\n", .{});
+    try printer.printResult("=> {s}\n", .{"42"});
+    try printer.printError("Syntax error at line {}\n", .{10});
 }
 
 test "simple test" {
