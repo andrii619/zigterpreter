@@ -6,6 +6,11 @@ const Style = @import("Utils/style.zig").Style; // if in a separate file
 
 const Printer = @import("Printer/printer.zig").Printer;
 
+const Scanner = @import("Scanner/scanner.zig");
+
+const mem = std.mem;
+const Allocator = mem.Allocator;
+
 /// Prints out program help menu.
 /// I took helper menu straight from python...
 pub fn printHelp() !void {
@@ -44,14 +49,14 @@ pub fn main() !void {
     // try printHelp();
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+    const app_mem_allocator = gpa.allocator();
     defer {
         const deinit_status = gpa.deinit();
         //fail test; can't try in defer as defer is executed after we return
         if (deinit_status == .leak) @panic("TEST FAIL");
     }
 
-    var iter = try std.process.argsWithAllocator(allocator);
+    var iter = try std.process.argsWithAllocator(app_mem_allocator);
     defer iter.deinit();
 
     var script_name: ?[]const u8 = null; // optinal script name
@@ -72,6 +77,9 @@ pub fn main() !void {
             try bw.flush(); // Don't forget to flush!
             // copy script name. safe as long as iter is still alive
             script_name = arg;
+            // script name should come after all options
+            // dont parse anything after
+            break;
         }
 
         try stdout.print("arg[{d}]: {s}\n", .{ i, arg });
@@ -84,11 +92,11 @@ pub fn main() !void {
         try stdout.print("script name:{s}\n", .{script});
         try bw.flush(); // Don't forget to flush!
         std.debug.print("here3\n", .{});
-        try runScriptMode(script);
+        try runScriptMode(script, app_mem_allocator);
     } else {
         // run in interpreter mode
         std.debug.print("here4\n", .{});
-        try runInterpreterMode();
+        try runInterpreterMode(app_mem_allocator);
     }
 
     // var map = std.AutoHashMap(u32, Point).init(
@@ -102,11 +110,12 @@ pub fn main() !void {
     // try map.put(1600, .{ .x = 4, .y = -1 });
 }
 
-fn runScriptMode(script_name: []const u8) !void {
+fn runScriptMode(script_name: []const u8, app_allocator: Allocator) !void {
+    _ = app_allocator;
     std.debug.print("script mode {s}\n", .{script_name});
 }
 
-fn runInterpreterMode() !void {
+fn runInterpreterMode(app_allocator: Allocator) !void {
 
     // run in a continous interpreter mode
     std.debug.print("interpreter mode\n", .{});
@@ -116,6 +125,11 @@ fn runInterpreterMode() !void {
     try printer.printError("Welcome to the Zig Interpreter!\n", .{});
     try printer.printResult("=> {s}\n", .{"42"});
     try printer.printError("Syntax error at line {}\n", .{10});
+
+    var lex_scanner = try Scanner.Scanner.init("stdin", app_allocator);
+    defer lex_scanner.deinit();
+
+    std.debug.print("lexer {d} {s}\n", .{ lex_scanner.getLineNumber(), lex_scanner.getFileName() });
 }
 
 test "simple test" {

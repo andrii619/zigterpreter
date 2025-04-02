@@ -27,41 +27,57 @@ const OperatorMap = std.ComptimeStringMap(TokenType, .{
     // ...
 });
 
-const Scanner = struct {
+pub const Token = struct {
+    kind: TokenType,
+    lexeme: []const u8,
+    line: usize,
+    offset: usize,
+};
+
+pub const Scanner = struct {
     /// current line number in the file/stdin while scanning
     line_number_: usize,
     /// current offset from beginning of file/stdin while scanning
     file_offset_: usize,
     /// absolute file path to the file being scanned or "<stdin>" if stdin is being used
-    file_name_: []const u8,
-
-    ///
-    stdin_mode: bool,
-
+    file_name_: []u8,
     ///
     allocator_: Allocator,
 
-    pub fn init(file_path: []const u8, allocator: Allocator) !Scanner {
+    buffer: std.ArrayListUnmanaged(u8),
+    cursor: usize,
 
-        // check if stdin
-        var stdin_mode_ = false;
-        if (std.mem.eql(u8, file_path, "stdin")) {
-            stdin_mode_ = true;
-        }
-
-        var scanner = Scanner{ .line_number_ = 0, .file_offset_ = 0, .stdin_mode = stdin_mode_, .allocator_ = allocator };
-
-        // check if file is valid
-        // copy the file path
-        scanner.line_number_ = 0;
-        scanner.file_name_ = scanner.allocator_.alloc(u8, file_path.len);
-        std.mem.copyForwards(u8, scanner.file_name_, file_path);
-
-        return scanner;
+    pub fn init(file_name: []const u8, allocator: Allocator) !Scanner {
+        return Scanner{
+            .allocator = allocator,
+            .buffer = .{},
+            .cursor = 0,
+            .line_number = 1,
+            .file_offset = 0,
+            .file_name = try allocator.dupe(u8, file_name),
+        };
     }
 
-    pub fn deinit(self: *Scanner) !void {
+    pub fn deinit(self: *Scanner) void {
         // free up memory used to save the file name
+        self.buffer.deinit(self.allocator);
         self.allocator_.free(self.file_name_);
+    }
+
+    pub fn getLineNumber(self: *Scanner) usize {
+        return self.line_number_;
+    }
+
+    pub fn getFileName(self: *Scanner) []u8 {
+        return self.file_name_;
+    }
+
+    /// Feed new input (line or chunk) to the scanner
+    pub fn addChunk(self: *Scanner, chunk: []const u8) !void {
+        try self.buffer.appendSlice(self.allocator, chunk);
+    }
+
+    pub fn nextToken(self: *Scanner) !void {
+        _ = self;
     }
 };
