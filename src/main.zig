@@ -124,7 +124,12 @@ fn runInterpreterMode(app_allocator: Allocator) !void {
 
     try printer.printError("Welcome to the Zig Interpreter!\n", .{});
     try printer.printResult("=> {s}\n", .{"42"});
-    try printer.printError("Syntax error at line {}\n", .{10});
+    try printer.printError("Syntax error at line 🔥 {}\n", .{10});
+
+    const @"tmpé🔥" = 4;
+    // const tmé = 5;
+    // _=tmé;
+    _ = @"tmpé🔥";
 
     var lex_scanner = try Scanner.Scanner.init("stdin", app_allocator);
     defer lex_scanner.deinit();
