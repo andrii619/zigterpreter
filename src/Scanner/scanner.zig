@@ -3,24 +3,66 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 
+/// Scanner/Lexer emits syntax tokens. No knowledge of grammer rules.
+/// Should be unambigous and context-free.
 ///
+/// Its the parser job to say: AtSign + String = quoted identifier
 /// @ tokens:
 ///     @"..." - identifier escape sequence
 ///     @identifier - built in function call
 ///
+/// @+string = quoted identifier
+///
+/// identifier: type
+///
+///
 const TokenType = enum {
     Identifier,
-    QuotedIdentifier, // @"..."
-    Builtin, // @builtin function
     String,
     MultilineString,
     Character,
-    Comment,
+    Comment, // or double slashed line
     DocComment,
+
+    // literals
+    IntegerLiteral,
+    FloatingLiteral,
+
+    // syntax
+    AtSign, // @
+    Underscore, // _
+    Equal, // =
+    LeftBrace, // {
+    RightBrace, // }
+    Comma, // ,
+    Dot, // .
+    LeftParenthesis, // (
+    RightParenthesis, // )
+    LeftBracket, // [
+    RightBracket, // ]
+    Plus, // +
+    Minus, // -
+    Star, // *
+    ForwardSlash, // /
+    Colon, // :
+    Semicolon, // ;
+    LessThan, // <
+    GreaterThan, // >
+    LessThanOrEquals, // <
+    GreaterThanOrEquals, // >
+    DoubleEquals, // ==
+    DoubleMinus, // --
+    DoublePlus, // ++
+    DoubleStar, // **
+
     KeywordIf,
     KeywordElse,
     KeywordWhile,
     KeywordFn,
+    KeywordConst,
+    KeywordPub,
+    KeywordOr,
+    KeywordAnd,
     // ... more
 };
 
@@ -64,7 +106,9 @@ pub const Scanner = struct {
     ///
     allocator: Allocator,
 
+    /// we buffer input while we are processing it
     buffer: std.ArrayListUnmanaged(u8),
+    /// cursor points to where we are in the buffer
     cursor: usize,
 
     pub fn init(file_name: []const u8, allocator: Allocator) !Scanner {
@@ -80,6 +124,10 @@ pub const Scanner = struct {
 
     pub fn deinit(self: *Scanner) void {
         // free up memory used to save the file name
+        // const temp: i32 = block_label: {
+        //     break :block_label 2;
+        // };
+        // _ = temp;
         self.buffer.deinit(self.allocator);
         self.allocator.free(self.file_name);
     }
@@ -103,24 +151,48 @@ pub const Scanner = struct {
     }
 
     /// Advance and produce the next token
-    pub fn nextToken(self: *Scanner) ?Token {
+    pub fn nextToken(self: *Scanner) !?Token {
         // Skip whitespace
+
+        if (self.cursor >= self.buffer.items) {
+            // the cursor cannot point past the end of buffer
+            return ScannerError.BufferOverflow;
+        }
+
+        if (self.cursor >= MAX_BUFFER_SIZE - 1024) {
+            // buffer almost full. reclaim space 🔥
+            compactBuffer(self);
+        }
+
         var utf8_iterator = std.unicode.Utf8Iterator{ .bytes = self.buffer.items, .i = 0 };
         //_ = utf8_iterator;
 
         while (utf8_iterator.nextCodepoint()) |codepoint| {
-            // _ = c;
+            if (!std.ascii.isAscii(codepoint)) {
+                // UTF8 characters only allowed inside escaped identifiers or comments
+                return ScannerError.InvalidUtf8;
+            }
 
-            if (codepoint <= 127 and std.ascii.isWhitespace(codepoint)) {
+            switch (codepoint) {
+                '(' => {
+                    self.cursor = self.cursor + 1;
+                    return Token{ .kind = TokenType.LeftParenthesis, .line = self.line_number, .offset = self.file_offset, .lexeme = "" };
+                },
+                ')' => {},
+                else => unreachable,
+            }
+
+            if (std.ascii.isWhitespace(codepoint)) {
                 // note: zig does not check for narrowing converison for runtime variables
                 // note: this means that it passes a u21 to isWhitespace as a u8 by truncating the number during runtime.
                 // note: its up to us to make sure this is ok.
                 std.debug.print("whitespace {c}", .{codepoint});
                 // note silently skip whitespace characters
-            } else if (codepoint <= 127 and std.ascii.isAlphanumeric(codepoint)) {
+                continue;
+            } else if (std.ascii.isAlphanumeric(codepoint)) {
                 // note identifier or keyword. start matching
                 // note matching function advances the cursor automatically if a match happens
-
+                // start parsing identifier
             } else {
                 // note: skip non ascii codepoint for now. will come back to handling those later
             }
@@ -130,64 +202,17 @@ pub const Scanner = struct {
             //if(c)
 
         }
-        // while (self.cursor < self.buffer.items.len) {
-        //     const c = self.buffer.items[self.cursor];
-        //     if (c == ' ' or c == '\t') {
-        //         self.cursor += 1;
-        //         self.file_offset += 1;
-        //     } else if (c == '\n') {
-        //         self.cursor += 1;
-        //         self.line_number += 1;
-        //         self.file_offset = 0;
-        //     } else {
-        //         break;
-        //     }
-        // }
-
-        // if (self.cursor >= self.buffer.items.len) return null;
-
-        // const start = self.cursor;
-
-        // // Identifier or keyword
-        // if (std.ascii.isAlphabetic(self.buffer.items[self.cursor])) {
-        //     self.cursor += 1;
-        //     while (self.cursor < self.buffer.items.len and std.ascii.isAlphanumeric(self.buffer.items[self.cursor])) {
-        //         self.cursor += 1;
-        //     }
-
-        //     const lexeme = self.buffer.items[start..self.cursor];
-        //     const kind = KeywordMap.get(lexeme) orelse TokenType.Identifier;
-
-        //     return Token{
-        //         .kind = kind,
-        //         .lexeme = lexeme,
-        //         .line = self.line_number,
-        //         .offset = self.file_offset,
-        //     };
-        // }
-
-        // // Operator
-        // for (1..2) |len| {
-        //     const end = @min(self.cursor + len, self.buffer.items.len);
-        //     const lexeme = self.buffer.items[self.cursor..end];
-        //     if (OperatorMap.get(lexeme)) |kind| {
-        //         self.cursor += len;
-        //         return Token{
-        //             .kind = kind,
-        //             .lexeme = lexeme,
-        //             .line = self.line_number,
-        //             .offset = self.file_offset,
-        //         };
-        //     }
-        // }
-
-        // // Unknown character (could expand error handling here)
-        // self.cursor += 1;
         return null;
     }
 
     /// Reclaim used space by shifting unprocessed bytes to the front
-    pub fn compactBuffer(self: *Scanner) void {
+    /// This function should be called internally by our scanner to reclaim space
+    /// we know that we already processed all tokens 0..cursor so we
+    /// can safely discard old data
+    /// When should this function get called? When we processed enough of the input but not too often because
+    /// we dont want too much copying. For example we should not call this after every token.
+    /// one idea is we could call this once our cursor gets big. Lets say close to our buffer end.
+    fn compactBuffer(self: *Scanner) void {
         if (self.cursor == 0) return;
 
         const remaining = self.buffer.items[self.cursor..];
